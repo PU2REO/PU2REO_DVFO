@@ -41,7 +41,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - Progamable Frequency Generator via Arduino/Si5351;
   - Digital TX/RX controller;
   - Digital RogerBeep;
-  - VoiceLock actuating directly on frequency generation via Analogic Input;
+  - VoiceLock actuating directly on frequency generation via Analog Input;
   - Adjustables IF Frequency, LSB & USB offset, Voice Lock Range, RogerBeep;
   - Channels and Direct Frequency Modes;
   - S-Meter on display, via Analogic Input;
