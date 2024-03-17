@@ -44,7 +44,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - VoiceLock actuating directly on frequency generation via Analog Input;
   - Adjustables IF Frequency, LSB & USB offset, Voice Lock Range, RogerBeep;
   - Channels and Direct Frequency Modes;
-  - S-Meter on display, via Analogic Input;
+  - S-Meter on display, via Analog Input;
 
 # Detailed information
 [PU2REO DVFO - User Manual v1.0.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.0.pdf "PU2REO DVFO - User Manual v1.0.pdf")
