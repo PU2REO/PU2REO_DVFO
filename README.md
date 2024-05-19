@@ -47,9 +47,18 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - S-Meter on display, via Analog Input;
 
 # Detailed information
-[PU2REO DVFO - User Manual v1.0.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.0.pdf "PU2REO DVFO - User Manual v1.0.pdf")
-
+[PU2REO DVFO - User Manual v1.0.1.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.0.1.pdf "PU2REO DVFO - User Manual v1.0.1.pdf")
 
 # Features not implemented yet
   - HF receiver for 40m band;
   - HF receiver board.
+
+# Pictures - Crude PCB and Assembled
+![Digital VFO - Main Board](Images/Image04.png "Digital VFO - Main Board")
+![Digital VFO - Buffer Board](Images/Image05.png "Digital VFO - Buffer Board")
+![Digital VFO - Assembled Buffer Board](Images/Image06.jpeg "Digital VFO - Assembled Buffer Board")
+![Digital VFO - Assembled Main Board](Images/Image07.jpeg "Digital VFO - Assembled Main Board")
+
+# History
+•	1.0 – Initial version
+•	1.0.1 – New pictures into the manual, minor correction to the schematics.
