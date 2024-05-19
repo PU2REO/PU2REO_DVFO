@@ -61,4 +61,4 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 
 # History
   - 1.0 – Initial version
-  - 1.0.1 – New pictures into the manual, minor correction to the schematics.
+  - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine

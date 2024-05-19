@@ -10,7 +10,9 @@
 //    - Adjustables IF Frequency, LSB & USB offset, Voice Lock Range, RogerBeep
 //    - Channels and VFO Modes
 //    - S-Meter on display, via Analogic Input
-// 
+//  v1.1
+//    - addeded tmpNeedSaving var to manage EEPROM savings
+//  
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                             Adrduino Nano Pinout
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +51,10 @@
 //        2 - Define: #define SSD1306_NO_SPLASH at the beggining of the file.
 //      Repeat these steps after every update for "Adafruit_SSD1306" library
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//      To use a cheap USBasp programmer plenty availabe on e-commerce:
+//        1 - Use Zadig (https://zadig.akeo.ie/) to install driver "libusbK (v3.1.0.0)". Other LibUSB drivers won't work.
+//        2 - On ArduinoIDE select: Tools > Programmer > USBasp
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // How to calculate proper interrupt timings
@@ -74,7 +80,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Definitions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define DVFO_VERSION                              "DVFO v1.0"           // Current DDS Version
+#define DVFO_VERSION                              "DVFO v1.1"           // Current DDS Version
 #define IF_MODE                                                         // enables IF mode (Adds ACT.EE_Values[EE_INDEX_INTFREQ] to the output - to use with a real radio)
 #define DIGITAL_ROGER_BEEP                                              // Enable Digital Roger Beep (tone function in arduino)
 // #define PROTEUS                                                      // enable initial setup of EEPROM values for Proteus
@@ -718,6 +724,9 @@ void loop()
     // check if it's time to save
     if (TimerDown[TIMERDOWN_CHANNEL_SAVE].Counter == 0)
     {
+        // temp - just to avoid unecessary savings to EEPROM.
+        bool tmpNeedSaving = false; // variable does not retain its value between function calls
+
         // Check menu type
         switch(MenuType)
         {
@@ -729,6 +738,8 @@ void loop()
                   // store index to the vector and save
                   ACT.OldChannelIndex = VFO.ChannelIndex;  
                   ACT.EE_Values[EE_INDEX_SAVED_CHANNEL_IDX] = VFO.ChannelIndex;
+                  // needs saving
+                  tmpNeedSaving = true;
               }
               break;
 
@@ -740,12 +751,14 @@ void loop()
                   // store index to the vector and save
                   ACT.OldDispFreq = VFO.DispFreq;  
                   ACT.EE_Values[EE_INDEX_SAVED_FREQUENCY] = VFO.DispFreq;
+                  // needs saving
+                  tmpNeedSaving = true;
               }
               break;
         }
 
         // save values
-        SaveValuesToEEPROM();
+        if (tmpNeedSaving) SaveValuesToEEPROM();
         // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
         // reset timer anyway
@@ -1275,7 +1288,7 @@ void ShowLogo(void)
     display.println(F(DVFO_VERSION));
     display.setTextSize(1);
     display.setCursor(8, 54);
-    display.println(F("Built Jan 1st, 2024"));
+    display.println(F("Built May 19th, 2024"));
     display.display();      
     delay(1000);
     display.clearDisplay();
