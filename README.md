@@ -56,8 +56,9 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 # Pictures - Crude PCB and Assembled
 ![Digital VFO - Main Board](Images/Image04.png "Digital VFO - Main Board")
 ![Digital VFO - Buffer Board](Images/Image05.png "Digital VFO - Buffer Board")
-![Digital VFO - Assembled Buffer Board](Images/Image06.jpeg "Digital VFO - Assembled Buffer Board")
-![Digital VFO - Assembled Main Board](Images/Image07.jpeg "Digital VFO - Assembled Main Board")
+![Digital VFO - Assembled Main Board](Images/Image06.jpeg "Digital VFO - Assembled Main Board")
+![Digital VFO - Assembled Buffer Board](Images/Image07.jpeg "Digital VFO - Assembled Buffer Board")
+>>>>>>> c412754578d2c16edb3b62935a41ae8af440fc44
 
 # History
 •	1.0 – Initial version
