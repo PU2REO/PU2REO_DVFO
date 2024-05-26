@@ -63,4 +63,4 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - 1.0 – Initial version
   - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine
 
-[![Github All Releases](https://img.shields.io/github/downloads/PU2REO/PU2REO_DVFO/total.svg)](https://github.com/PU2REO/PU2REO_DVFO/releases)
+[![Release downloads](https://img.shields.io/github/downloads/PU2REO/PU2REO_DVFO/total.svg)](https://GitHub.com/PU2REO/PU2REO_DVFO/releases/)
