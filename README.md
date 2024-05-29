@@ -47,7 +47,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - S-Meter on display, via Analog Input;
 
 # Detailed information
-[PU2REO DVFO - User Manual v1.0.1.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.0.1.pdf "PU2REO DVFO - User Manual v1.0.1.pdf")
+[PU2REO DVFO - User Manual v1.1.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.1.pdf "PU2REO DVFO - User Manual v1.0.1.pdf")
 
 # Features not implemented yet
   - HF receiver for 40m band;
