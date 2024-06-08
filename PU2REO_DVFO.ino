@@ -12,6 +12,10 @@
 //    - S-Meter on display, via Analogic Input
 //  v1.1
 //    - addeded tmpNeedSaving var to manage EEPROM savings
+//  v1.2
+//    - fixed channel mode power-on frequency 
+//    - Single or Two-tone Roger Beep :D
+//    - Removed extra code managing EEPROM savings
 //  
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                             Adrduino Nano Pinout
@@ -80,7 +84,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Definitions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define DVFO_VERSION                              "DVFO v1.1"           // Current DDS Version
+#define DVFO_VERSION                              "DVFO v1.2"           // Current DDS Version
+#define DVFO_BUILD_DATE                           "Built Jun 08th, 2024"// Build Date
 #define IF_MODE                                                         // enables IF mode (Adds ACT.EE_Values[EE_INDEX_INTFREQ] to the output - to use with a real radio)
 #define DIGITAL_ROGER_BEEP                                              // Enable Digital Roger Beep (tone function in arduino)
 // #define PROTEUS                                                      // enable initial setup of EEPROM values for Proteus
@@ -114,7 +119,7 @@
 #define SI5351_CLK_ENABLE                         1                     // enable clock
 
 // Timer definitions
-#define TIMERDOWN_BEEP_VALUE                      30                    // x 10[ms]
+#define TIMERDOWN_BEEP_VALUE                      30                    // x 10[ms] - Duration of the Beep
 #define TIMERDOWN_CHANNEL_SAVE_VALUE              500                   // x 10[ms]
 #define TIMERDOWN_DELAY_AFTER_BEEP_VALUE          5                     // x 10[ms]
 // #define TIMERDOWN_RUNNING_LED_VALUE               50                    // x 10[ms]
@@ -160,7 +165,8 @@
 
 // roger beep definitions
 #define MENU_ROGERBEEP_OFF                        0                     // Roger Beep Type - Roger Beep is Off 
-#define MENU_ROGERBEEP_ON                         1                     // Roger Beep Type - Roger Beep is On  
+#define MENU_ROGERBEEP_SINGLE                     1                     // Roger Beep Type - Roger Beep is On - Single Tone Beep  
+#define MENU_ROGERBEEP_DOUBLE                     2                     // Roger Beep Type - Roger Beep is On - Double Tone Beep
 
 // contrast definitions
 #define CONTRAST_COMMAND                          0x81                  // Initial contrast command
@@ -434,7 +440,8 @@ void setup()
     VFO.ServMenuRequest = 0;
     VFO.ChannelIndex    = (int16_t)ACT.EE_Values[EE_INDEX_SAVED_CHANNEL_IDX];
     ACT.OldChannelIndex = VFO.ChannelIndex;
-    VFO.DispFreq        = ACT.EE_Values[EE_INDEX_SAVED_FREQUENCY] != 0 ? ACT.EE_Values[EE_INDEX_SAVED_FREQUENCY]: SI5351_INIT_FREQ;
+    VFO.DispFreq        = (ACT.EE_Values[EE_INDEX_MENUTYP] == MENU_TYPE_VFO) ? ACT.EE_Values[EE_INDEX_SAVED_FREQUENCY] : 
+                                                                               pgm_read_word(&ChannelsFreq[ACT.EE_Values[EE_INDEX_SAVED_CHANNEL_IDX]]);
     ACT.OldDispFreq     = VFO.DispFreq;
 
     // check initial CoefIndex Value
@@ -527,14 +534,14 @@ void loop()
     /////////////////////////////
 
     // read SMeter input
-    #ifdef PROTEUS                                                                                                      // check if Proteus is enabled
-      int16_t tmpSMeterBar = 1000;                                                                                      // force ramdomic values
+    #ifdef PROTEUS                                                                                                    // check if Proteus is enabled
+      int16_t tmpSMeterBar = 1000;                                                                                    // force ramdomic values
     #else
       int16_t tmpSMeterBar = map(analogRead(AI_SMETER), 0, ACT.EE_Values[EE_INDEX_SMETER_CALIBRT], 0, 1023);                                                                     // Analogic input para o s-meter
     #endif
 
     // read mode key input
-    tmpMode = (!digitalRead(DI_MODE_AM)) | ((!digitalRead(DI_MODE_USB)) << 1);                                          // Digital inputs for band mode    
+    tmpMode = (!digitalRead(DI_MODE_AM)) | ((!digitalRead(DI_MODE_USB)) << 1);                                        // Digital inputs for band mode    
 
     // voice lock management
     int16_t tmpVoiceLock = ((analogRead(AI_VOICE_LOCK)-512) * (ACT.EE_Values[EE_INDEX_VL_RANGE]/100)) / 1023.0;       // Analogic input for VoiceLock
@@ -670,7 +677,7 @@ void loop()
 
                 // Channel channel type
                 case MENU_TYPE_CHANNEL:
-                  // with IF Frequency
+                  // calculate new frequency
                   VFO.ChannelIndex += (uint16_t)newPosition * (uint16_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
                   if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition > 0)) VFO.ChannelIndex = MAX_CHANNEL_INDEX-1;
                   if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition < 0)) VFO.ChannelIndex = 0;
@@ -694,7 +701,7 @@ void loop()
             // check for roger beep 0 or 1 Allowed
             if (ACT.EE_Values_Index == EE_INDEX_RB_STATUS)
             {
-                ACT.EE_Values[ACT.EE_Values_Index] = CheckLimits32(ACT.EE_Values[ACT.EE_Values_Index], MENU_ROGERBEEP_OFF, MENU_ROGERBEEP_ON);
+                ACT.EE_Values[ACT.EE_Values_Index] = CheckLimits32(ACT.EE_Values[ACT.EE_Values_Index], MENU_ROGERBEEP_OFF, MENU_ROGERBEEP_DOUBLE);
             }
 
             // check for contrast 0 or 1 Allowed
@@ -761,17 +768,8 @@ void loop()
         if (tmpNeedSaving) SaveValuesToEEPROM();
         // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-        // reset timer anyway
+        // reset timer
         TimerDown[TIMERDOWN_CHANNEL_SAVE].Counter = TIMERDOWN_CHANNEL_SAVE_VALUE;
-    }
-    else
-    {
-        // check if channel has changed
-        if ((ACT.OldChannelIndex == VFO.ChannelIndex) && (ACT.OldDispFreq == VFO.DispFreq))
-        {
-            // reset timer anyway
-            TimerDown[TIMERDOWN_CHANNEL_SAVE].Counter = TIMERDOWN_CHANNEL_SAVE_VALUE;
-        }
     }
     /////////////////////////////
     // end channel save
@@ -865,7 +863,6 @@ void loop()
         display.setTextSize(1);
         display.setTextColor(SSD1306_WHITE);
         display.setCursor(0, 0);
-        // display.println(F("SIG.1.3.5.7.9..+30dB"));
         display.println(F("Sig 1 3 5 7 9  +30dB"));
       
         // Display S-Meter
@@ -1140,7 +1137,15 @@ void loop()
                   // check for analogic/digital Roger Beep
                   #ifdef DIGITAL_ROGER_BEEP
                     // starts digital beep
-                    tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY);
+                    if (ACT.EE_Values[EE_INDEX_RB_STATUS] == MENU_ROGERBEEP_SINGLE)
+                    {
+                       tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY);  
+                    }
+                    else
+                    {
+                       tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY/2);  
+                    }
+                    
                   #else
                     // enable analogic beep
                     digitalWrite(DO_RG_BEEP, HIGH);
@@ -1181,6 +1186,13 @@ void loop()
 
               // set timer
               TimerDown[TIMERDOWN_DELAY_AFTER_BEEP].Counter =  TIMERDOWN_DELAY_AFTER_BEEP_VALUE;             
+          }
+          else if (TimerDown[TIMERDOWN_BEEP].Counter < (TIMERDOWN_BEEP_VALUE/2) && (ACT.EE_Values[EE_INDEX_RB_STATUS] == MENU_ROGERBEEP_DOUBLE))
+          {
+              #ifdef DIGITAL_ROGER_BEEP
+                // starts digital beep
+                tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY);
+              #endif
           }
           break;
 
@@ -1288,8 +1300,8 @@ void ShowLogo(void)
     display.println(F(DVFO_VERSION));
     display.setTextSize(1);
     display.setCursor(8, 54);
-    display.println(F("Built May 19th, 2024"));
+    display.println(F(DVFO_BUILD_DATE));
     display.display();      
-    delay(1000);
+    delay(1500);
     display.clearDisplay();
 }

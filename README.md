@@ -47,7 +47,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - S-Meter on display, via Analog Input;
 
 # Detailed information
-[PU2REO DVFO - User Manual v1.0.1.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.0.1.pdf "PU2REO DVFO - User Manual v1.0.1.pdf")
+[PU2REO DVFO - User Manual v1.2.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.2.pdf "PU2REO DVFO - User Manual v1.2.pdf")
 
 # Features not implemented yet
   - HF receiver for 40m band;
@@ -62,5 +62,6 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 # History
   - 1.0 – Initial version
   - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine
+  - 1.2 - Fixed channel mode power-on frequency; Single or Two-tone Roger Beep; Removed extra code managing EEPROM savings
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/PU2REO/PU2REO_DVFO/total?style=flat)
