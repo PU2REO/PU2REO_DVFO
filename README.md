@@ -63,5 +63,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - 1.0 – Initial version
   - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine
   - 1.2 - Fixed channel mode power-on frequency; Single or Two-tone Roger Beep; Removed extra code managing EEPROM savings
+  - 1.3 - (not releasead)
+  - 1.4 - Removed Two-Tone Roger Beep and added a Special One (to my granddaughter!); Map function on voice lock;  Fixed voice lock range issue (AInput does not reach value 1024); Minor improvements
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/PU2REO/PU2REO_DVFO/total?style=flat)

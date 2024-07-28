@@ -16,6 +16,13 @@
 //    - fixed channel mode power-on frequency 
 //    - Single or Two-tone Roger Beep :D
 //    - Removed extra code managing EEPROM savings
+//  v1.3
+//    - Super Mario Bros Roger Beep :D
+//  v1.4
+//    - Map function on voice lock
+//    - Treating all frequency related vars as uint64_t
+//    - Fixed voice lock range issue (AInput does not reach value 1024)
+//    - Minor improvements
 //  
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                             Adrduino Nano Pinout
@@ -84,11 +91,13 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Definitions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define DVFO_VERSION                              "DVFO v1.2"           // Current DDS Version
-#define DVFO_BUILD_DATE                           "Built Jun 08th, 2024"// Build Date
+#define DVFO_VERSION                              "DVFO v1.4"           // Current DDS Version
+#define DVFO_BUILD_DATE                           "Built Jul 28th, 2024"// Build Date
 #define IF_MODE                                                         // enables IF mode (Adds ACT.EE_Values[EE_INDEX_INTFREQ] to the output - to use with a real radio)
 #define DIGITAL_ROGER_BEEP                                              // Enable Digital Roger Beep (tone function in arduino)
+// #define SHOW_AI_VOICE_LOCK_INPUT_VALUE                                  // Show AI_VOICE_LOCK readings
 // #define PROTEUS                                                      // enable initial setup of EEPROM values for Proteus
+
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 // Yellow Display (L,C): ( 0,0) to (15x127)
@@ -111,8 +120,9 @@
 #define SI5351_INIT_FREQ                          27455                 // in 1 [kHz] - 11m band
 #define SI5351_MAX_FREQ                           30000                 // in 1 [kHz] - 10m band
 #define SI5351_MAX_COEF                           3                     // max CoefTable index
-#define SI5351_FREQ_MULTIPLIER                    100000ULL        		  // display frequency multiplier
-#define SI5351_VOICELOCK_MULTIPLIER               10000ULL        		  // voice lock input multiplier (will act on tenths of Hz)
+#define SI5351_FREQ_MULTIPLIER                    (1000ULL * SI5351_FREQ_MULT)    // display frequency multiplier (for precision, library will accept frequencies * SI5351_FREQ_MULT)
+#define SI5351_VOICELOCK_MULTIPLIER               (100ULL  * SI5351_FREQ_MULT)    // voice lock input multiplier (will act on 100Hz base)
+#define SI5351_VOICELOCK_DIVIDER                  (2 * (int16_t)SI5351_FREQ_MULT) // voice lock range divider                    
 
 // clock enable/disable control
 #define SI5351_CLK_DISABLE                        0                     // disable clock
@@ -121,15 +131,13 @@
 // Timer definitions
 #define TIMERDOWN_BEEP_VALUE                      30                    // x 10[ms] - Duration of the Beep
 #define TIMERDOWN_CHANNEL_SAVE_VALUE              500                   // x 10[ms]
-#define TIMERDOWN_DELAY_AFTER_BEEP_VALUE          5                     // x 10[ms]
-// #define TIMERDOWN_RUNNING_LED_VALUE               50                    // x 10[ms]
+#define TIMERDOWN_DELAY_AFTER_BEEP_VALUE          7                     // x 10[ms]
 
 // timers
 #define MAX_NR_TIMER_DOWN                         3                     // Maximum number of TimerDown Timers
 #define TIMERDOWN_BEEP                            0                     // Timer Down for RogerBeep Control
 #define TIMERDOWN_CHANNEL_SAVE                    1                     // Timer Down for Channel Save
 #define TIMERDOWN_DELAY_AFTER_BEEP                2                     // Timer Down for RogerBeep Control
-// #define TIMERDOWN_RUNNING_LED                     3                     // Timer Down for Led Control
 
 // Digital Roger Beep
 #define DIGITAL_RB_FREQUENCY                      2000                  // Roger Beep frequency in [Hz]
@@ -143,6 +151,8 @@
 // Analog Inputs
 #define AI_SMETER                                 A6                    // Analogic Input - S-Meter
 #define AI_VOICE_LOCK                             A7                    // Analogic Input - Voice Lock
+#define AI_VOICE_LOCK_MIN                         0                     // Analogic Input - Voice Lock - Min. Input Value 
+#define AI_VOICE_LOCK_MAX                         1019                  // Analogic Input - Voice Lock - Max. Input Value 
 
 // Digital Inputs
 #define DI_ENC_KEY                                A1                    // Digital Input - Encoder Key - Active Low
@@ -166,8 +176,15 @@
 // roger beep definitions
 #define MENU_ROGERBEEP_OFF                        0                     // Roger Beep Type - Roger Beep is Off 
 #define MENU_ROGERBEEP_SINGLE                     1                     // Roger Beep Type - Roger Beep is On - Single Tone Beep  
-#define MENU_ROGERBEEP_DOUBLE                     2                     // Roger Beep Type - Roger Beep is On - Double Tone Beep
+#define MENU_ROGERBEEP_SPECIAL                    2                     // Roger Beep Type - Roger Beep is On - Mario Bros Beep
 
+#define NOTE_G4                                   392                   // G4 Frequency in [Hz]
+#define NOTE_C5                                   523                   // C5 Frequency in [Hz]
+#define NOTE_E5                                   659                   // E5 Frequency in [Hz]
+#define NOTE_G5                                   783                   // G5 Frequency in [Hz]
+#define T1                                        250                   // Duration in [ms]
+#define T2                                        125                   // Duration in [ms]
+	
 // contrast definitions
 #define CONTRAST_COMMAND                          0x81                  // Initial contrast command
 #define MENU_CONTRAST_MIN                         0x01                  // Minimum contrast value
@@ -205,15 +222,15 @@ enum eeprom_data
       EE_INDEX_LSBOFFS,                                                 // LSB Frequency Offset - x 1 [Hz] - 4 bytes long
       EE_INDEX_USBOFFS,                                                 // USB Frequency Offset - x 1 [Hz] - 4 bytes long
       EE_INDEX_VL_RANGE,                                                // Voice Lock Range - x 1 [Hz] - 4 bytes long
-      EE_INDEX_SMETER_CALIBRT,                                          // SMeter Calibration Range  - EXPRERIMENTAL
-	    EE_INDEX_SAVED_CHANNEL_IDX,                                       // Channel Displayed Index - 4 bytes long
-	    EE_INDEX_SAVED_FREQUENCY,                                         // Displayed Frequency - 4 bytes long
+      EE_INDEX_SMETER_CALIBRT,                                          // SMeter Calibration Range
+      EE_INDEX_SAVED_CHANNEL_IDX,                                       // Channel Displayed Index - 4 bytes long
+      EE_INDEX_SAVED_FREQUENCY,                                         // Displayed Frequency - 4 bytes long
       EE_INDEX_EEPROM_STATUS,                                           // EEPROM Status (Initial Saved Data)      
       EE_INDEX_MAX
 };
 
 // Service Menu max index definition
-#define EE_SERV_MENU_INDEX_MAX								    EE_INDEX_SMETER_CALIBRT+1   // set this definition to the maximum item to be shown in service menu
+#define EE_SERV_MENU_INDEX_MAX                    EE_INDEX_SMETER_CALIBRT+1   // set this definition to the maximum item to be shown in service menu
 
 // EEPROM Status definitions
 #define EEPROM_STATUS_UNKNOWN                     -1
@@ -230,20 +247,29 @@ enum mode_data
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 typedef struct
 {
-    int32_t      DispFreq;                                              // Frequency to be displayed
-    uint16_t     ChannelIndex;                                          // Channel Index
-    int8_t       CoefIndex;                                             // CoefTable Index
     bool         ServMenuRequest;                                       // Request for Service Menu 
     bool         ServMenuInUse;                                         // Service Menu in Use     
+    int8_t       CoefIndex;                                             // CoefTable Index
+    int8_t       ModulationMode;                                        // stores current modulation mode
+    int32_t      DispFreq;                                              // Frequency to be displayed
+    int16_t      VoiceLock;                                             // stores VoiceLock value
+    uint16_t     ChannelIndex;                                          // Channel Index
 } VFO_typ;
 
 typedef struct
 {
-    int32_t      EE_Values[EE_INDEX_MAX];                               // vector of values to be read / saved in EEPROM
+    bool         FreqHasChanged;                                        // detects changes in frequency
+    bool         VoiceLockHasChanged;                                   // detects changes in voice lock
+    int8_t       OldModulationMode;                                     // stores Old mode - no mode at start
+    uint8_t      MenyType;                                              // stores menu type
+    uint8_t      RadioState;                                            // stores radio state (Controls PTT button actions)
     uint8_t      EE_Values_Index;                                       // index for menus/EE_Values EEPROM vector
-    int32_t      OldCalibrationAdjust;                                  // stores old calibration value to avoid unecessary calculations
     uint16_t     OldChannelIndex;                                       // channel Index for saving purposes
+    int32_t      EE_Values[EE_INDEX_MAX];                               // vector of values to be read / saved in EEPROM
+    int32_t      OldCalibrationAdjust;                                  // stores old calibration value to avoid unecessary calculations
     int32_t      OldDispFreq;                                           // displayed frequency for saving purposes
+    int16_t      OldVoiceLock;                                          // stores Old VoiceLock value
+    uint64_t     OutputFreq;                                            // frequency calculation variable.
 } ACT_typ;
 
 typedef struct
@@ -328,20 +354,12 @@ Si5351                        si5351;                                           
 ButtonV2                      EncKey;                                                               // define Improved Button control variable
 VFO_typ                       VFO;                                                                  // define VFO control variable
 ACT_typ                       ACT;                                                                  // actual values
-int8_t                        tmpMode;                                                              // stores current modulation mode
-int8_t                        tmpOldMode      = -1;                                                 // stores Old mode - no mode at start
-uint8_t                       tmpHFRecStatus  =  5;                                                 // 5 always forces an update, since possible valaues are HIGH and LOW (1 and 0)
-uint8_t                       RadioState      =  RADIO_STATE_RX;                                    // stores radio state (Controls PTT button actions)
-uint8_t                       MenuType;                                                             // stores menu type
-int16_t                       tmpOldVoiceLock =  0;                                                 // stores Old VoiceLock value
-int64_t                       tmpFreq = 0ULL;                                                       // frequency calculation variable.
 volatile TimerDown_typ        TimerDown[MAX_NR_TIMER_DOWN];                                         // timer vector
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Function Prototypes
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
 int32_t   CheckLimits32(int32_t Variable, int32_t Minimum, int32_t Maximum);
-int64_t   CheckLimits64(int64_t Variable, int64_t Minimum, int64_t Maximum);
 void      SaveValuesToEEPROM(void);
 void      ReadValuesFromEEPROM(void);
 void      SetContrast(uint8_t);
@@ -394,6 +412,12 @@ void setup()
     pinMode(DI_MODE_AM,  INPUT_PULLUP);                   // Active Low
     pinMode(DI_MODE_USB, INPUT_PULLUP);                   // Active Low
     pinMode(DI_PTT_KEY,  INPUT_PULLUP);                   // Active Low
+
+    // initializes variables
+    ACT.OldModulationMode      = -1;                      // stores Old mode - no mode at start
+    ACT.RadioState      =  RADIO_STATE_RX;                // stores radio state (Controls PTT button actions)
+    ACT.OldVoiceLock =  0;                                // stores Old VoiceLock value
+    ACT.OutputFreq      = 0ULL;                           // frequency calculation variable.
   
     // Read EEProm values
     ReadValuesFromEEPROM();
@@ -449,9 +473,9 @@ void setup()
   
     // set SI5351 power-on frequency
     #ifndef IF_MODE
-      si5351.set_freq(((int64_t)VFO.DispFreq * SI5351_FREQ_MULTIPLIER), SI5351_VFO_CLOCK);
+      si5351.set_freq(((uint64_t)VFO.DispFreq * SI5351_FREQ_MULTIPLIER), SI5351_VFO_CLOCK);
     #else
-      si5351.set_freq(((int64_t)(VFO.DispFreq + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER), SI5351_VFO_CLOCK);
+      si5351.set_freq(((uint64_t)(VFO.DispFreq + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER), SI5351_VFO_CLOCK);
     #endif
 
     // set driver current output
@@ -487,7 +511,7 @@ void setup()
     TimerDown[TIMERDOWN_CHANNEL_SAVE].Counter = TIMERDOWN_CHANNEL_SAVE_VALUE;
 
     // Radio state
-    RadioState = RADIO_STATE_RX;
+    ACT.RadioState = RADIO_STATE_RX;
 
     // show logo
     ShowLogo();
@@ -526,11 +550,11 @@ void loop()
 {
     // variables declaration
     char       LCDstr[11];
-    bool       btmpFreqHasChanged      = false; 
-    bool       btmpVoiceLockHasChanged = false; 
+
+    // initializes variables
 
     /////////////////////////////
-    // read inputs
+    // read arduino inputs
     /////////////////////////////
 
     // read SMeter input
@@ -540,15 +564,17 @@ void loop()
       int16_t tmpSMeterBar = map(analogRead(AI_SMETER), 0, ACT.EE_Values[EE_INDEX_SMETER_CALIBRT], 0, 1023);                                                                     // Analogic input para o s-meter
     #endif
 
-    // read mode key input
-    tmpMode = (!digitalRead(DI_MODE_AM)) | ((!digitalRead(DI_MODE_USB)) << 1);                                        // Digital inputs for band mode    
+    // read modulation mode key input
+    VFO.ModulationMode = (!digitalRead(DI_MODE_AM)) | ((!digitalRead(DI_MODE_USB)) << 1);                       // Digital inputs for band mode    
 
     // voice lock management
-    int16_t tmpVoiceLock = ((analogRead(AI_VOICE_LOCK)-512) * (ACT.EE_Values[EE_INDEX_VL_RANGE]/100)) / 1023.0;       // Analogic input for VoiceLock
-    btmpVoiceLockHasChanged = (tmpOldVoiceLock != tmpVoiceLock);                                                      // Check for changes in Voice Lock
+    VFO.VoiceLock = map(analogRead(AI_VOICE_LOCK), 0, 1023, 
+                        (-ACT.EE_Values[EE_INDEX_VL_RANGE]/SI5351_VOICELOCK_DIVIDER), 
+                        ( ACT.EE_Values[EE_INDEX_VL_RANGE]/SI5351_VOICELOCK_DIVIDER));         // map VoiceLock analog input into frequency range
+    ACT.VoiceLockHasChanged = (ACT.OldVoiceLock != VFO.VoiceLock);                                     // Check for changes in Voice Lock input
 
     // menu type
-    MenuType = (uint8_t)ACT.EE_Values[EE_INDEX_MENUTYP];
+    ACT.MenyType = (uint8_t)ACT.EE_Values[EE_INDEX_MENUTYP];
     /////////////////////////////
     // end read inputs
     /////////////////////////////
@@ -571,10 +597,10 @@ void loop()
                   SaveValuesToEEPROM();
         
                   // force update frequency
-                  btmpFreqHasChanged = true;
+                  ACT.FreqHasChanged = true;
       
                   // check if CoefIndex is properly set in case of MENU_TYPE_CHANNEL  
-                  if ((MenuType == MENU_TYPE_CHANNEL) && (VFO.CoefIndex > (SI5351_MAX_COEF-2)))
+                  if ((ACT.MenyType == MENU_TYPE_CHANNEL) && (VFO.CoefIndex > (SI5351_MAX_COEF-2)))
                   {
                       // Set to x 1
                       VFO.CoefIndex = 0;
@@ -610,7 +636,7 @@ void loop()
                   ACT.OldCalibrationAdjust = ACT.EE_Values[EE_INDEX_CALIBRT];
                   
                   // force update frequency
-                  btmpFreqHasChanged = true;  
+                  ACT.FreqHasChanged = true;  
               }
           }
           break;
@@ -621,7 +647,7 @@ void loop()
           VFO.CoefIndex++;
           
           // check menu type
-          if ((MenuType == MENU_TYPE_VFO) || VFO.ServMenuInUse)
+          if ((ACT.MenyType == MENU_TYPE_VFO) || VFO.ServMenuInUse)
           {
               // VFO type or service menu
               if (VFO.CoefIndex > SI5351_MAX_COEF)     VFO.CoefIndex = 0;
@@ -659,33 +685,33 @@ void loop()
     }  
   
     // manage encoder position
-    int newPosition = encoder.getPosition();                // variable does not retain its value between function calls
+    int32_t newPosition = encoder.getPosition();                // variable does not retain its value between function calls
     if (newPosition != 0) 
     {      
         // check for active service menu
         if (!VFO.ServMenuInUse)
         {  
-            switch(MenuType)
+            switch(ACT.MenyType)
             {
                 // VFO type
                 case MENU_TYPE_VFO:
                   // calculate new frequency
-                  VFO.DispFreq = (int32_t)CheckLimits64((int64_t)VFO.DispFreq + (int64_t)newPosition * (int64_t)pgm_read_word(&CoefTable[VFO.CoefIndex]), 
-                                                        (int64_t)SI5351_MIN_FREQ, 
-                                                        (int64_t)SI5351_MAX_FREQ);
+                  VFO.DispFreq = CheckLimits32(VFO.DispFreq + newPosition * (int32_t)pgm_read_word(&CoefTable[VFO.CoefIndex]), 
+                                                        (int32_t)SI5351_MIN_FREQ, 
+                                                        (int32_t)SI5351_MAX_FREQ);
                   break;
 
                 // Channel channel type
                 case MENU_TYPE_CHANNEL:
                   // calculate new frequency
-                  VFO.ChannelIndex += (uint16_t)newPosition * (uint16_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
+                  VFO.ChannelIndex += (int16_t)newPosition * (uint16_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
                   if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition > 0)) VFO.ChannelIndex = MAX_CHANNEL_INDEX-1;
                   if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition < 0)) VFO.ChannelIndex = 0;
                   break;
             }
             
             // new freq has been set
-            btmpFreqHasChanged = true;
+            ACT.FreqHasChanged = true;
         }
         else
         {
@@ -701,7 +727,7 @@ void loop()
             // check for roger beep 0 or 1 Allowed
             if (ACT.EE_Values_Index == EE_INDEX_RB_STATUS)
             {
-                ACT.EE_Values[ACT.EE_Values_Index] = CheckLimits32(ACT.EE_Values[ACT.EE_Values_Index], MENU_ROGERBEEP_OFF, MENU_ROGERBEEP_DOUBLE);
+                ACT.EE_Values[ACT.EE_Values_Index] = CheckLimits32(ACT.EE_Values[ACT.EE_Values_Index], MENU_ROGERBEEP_OFF, MENU_ROGERBEEP_SPECIAL);
             }
 
             // check for contrast 0 or 1 Allowed
@@ -735,7 +761,7 @@ void loop()
         bool tmpNeedSaving = false; // variable does not retain its value between function calls
 
         // Check menu type
-        switch(MenuType)
+        switch(ACT.MenyType)
         {
           // Channel type
           case MENU_TYPE_CHANNEL:
@@ -766,7 +792,6 @@ void loop()
 
         // save values
         if (tmpNeedSaving) SaveValuesToEEPROM();
-        // digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
         // reset timer
         TimerDown[TIMERDOWN_CHANNEL_SAVE].Counter = TIMERDOWN_CHANNEL_SAVE_VALUE;
@@ -778,71 +803,73 @@ void loop()
     //////////////////////////////////
     // manage frequency/mode changes
     //////////////////////////////////    
-    if(btmpFreqHasChanged || btmpVoiceLockHasChanged || (tmpMode != tmpOldMode))
+    if(ACT.FreqHasChanged || ACT.VoiceLockHasChanged || (VFO.ModulationMode != ACT.OldModulationMode))
     {
-        // set old mode
-        tmpOldMode      = tmpMode;
-        tmpOldVoiceLock = tmpVoiceLock;
+        // store old values in its proper variables
+        ACT.OldModulationMode = VFO.ModulationMode;
+        ACT.OldVoiceLock      = VFO.VoiceLock;
        
-        // choose IF mode
+        // check IF mode
         #ifdef IF_MODE
-          switch(MenuType)
+          // check menu type
+          switch(ACT.MenyType)
           {
               // VFO type
               case MENU_TYPE_VFO:
                 // with IF Frequency
-                tmpFreq = (int64_t)((VFO.DispFreq + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER + (tmpVoiceLock * SI5351_VOICELOCK_MULTIPLIER));
+                ACT.OutputFreq = (uint64_t)((VFO.DispFreq + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER + (VFO.VoiceLock * SI5351_VOICELOCK_MULTIPLIER));
                 break;
   
               // VFO channel type
               case MENU_TYPE_CHANNEL:
                 // with IF Frequency
-                tmpFreq = (int64_t)((pgm_read_word(&ChannelsFreq[VFO.ChannelIndex]) + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER  + (tmpVoiceLock * SI5351_VOICELOCK_MULTIPLIER));
+                ACT.OutputFreq = (uint64_t)((pgm_read_word(&ChannelsFreq[VFO.ChannelIndex]) + ACT.EE_Values[EE_INDEX_INTFREQ]) * SI5351_FREQ_MULTIPLIER  + (VFO.VoiceLock * SI5351_VOICELOCK_MULTIPLIER));
                 break;
           }
         #else
-          switch(MenuType)
+          // check menu type
+          switch(ACT.MenyType)
           {
               // VFO type
               case MENU_TYPE_VFO:
                 // without IF Frequency
-                tmpFreq = (int64_t)((VFO.DispFreq) * SI5351_FREQ_MULTIPLIER) + (tmpVoiceLock * SI5351_VOICELOCK_MULTIPLIER);
+                ACT.OutputFreq = (uint64_t)((VFO.DispFreq) * SI5351_FREQ_MULTIPLIER) + (VFO.VoiceLock * SI5351_VOICELOCK_MULTIPLIER);
                 break;
 
               // Channel type
               case MENU_TYPE_CHANNEL:
                 // without IF Frequency
-                tmpFreq = (int64_t)((pgm_read_word(&ChannelsFreq[VFO.ChannelIndex]) * SI5351_FREQ_MULTIPLIER) + (tmpVoiceLock * SI5351_VOICELOCK_MULTIPLIER));
+                ACT.OutputFreq = (uint64_t)((pgm_read_word(&ChannelsFreq[VFO.ChannelIndex]) * SI5351_FREQ_MULTIPLIER) + (VFO.VoiceLock * SI5351_VOICELOCK_MULTIPLIER));
 				        break;
           }
         #endif
 
         // check mode 
-        switch(tmpMode)
+        switch(VFO.ModulationMode)
         {
             // modulating in AM
             case MODULATION_MODE_AM:
               // set base freq + IF offset
-              si5351.set_freq(tmpFreq, SI5351_VFO_CLOCK);
+              si5351.set_freq(ACT.OutputFreq, SI5351_VFO_CLOCK);
             break;  
             
             // modulating in LSB
             case MODULATION_MODE_LSB:
               // set base freq + IF offset + LSB offset
-              tmpFreq += ACT.EE_Values[EE_INDEX_LSBOFFS] * SI5351_FREQ_MULT;
-              si5351.set_freq(tmpFreq, SI5351_VFO_CLOCK);
+              ACT.OutputFreq += ACT.EE_Values[EE_INDEX_LSBOFFS] * SI5351_FREQ_MULT;
+              si5351.set_freq(ACT.OutputFreq, SI5351_VFO_CLOCK);
             break;  
 
             // modulating in USB
             case MODULATION_MODE_USB:
               // set base freq + IF offset + USB offset
-              tmpFreq += ACT.EE_Values[EE_INDEX_USBOFFS] * SI5351_FREQ_MULT;
-              si5351.set_freq(tmpFreq, SI5351_VFO_CLOCK);
+              ACT.OutputFreq += ACT.EE_Values[EE_INDEX_USBOFFS] * SI5351_FREQ_MULT;
+              si5351.set_freq(ACT.OutputFreq, SI5351_VFO_CLOCK);
             break;  
         }
 
         // reset freq changes control
-        btmpFreqHasChanged = false;
+        ACT.FreqHasChanged = false;
     }
     ///////////////////////////////////////
     // end manage frequency/mode changes
@@ -879,13 +906,13 @@ void loop()
         //////////////////////////////////
       
         ///////////////////////////////////////////
-        // display lines, frequency, unit and mode
+        // display lines, frequency, unit and status
         ///////////////////////////////////////////
         // draw a line
         display.writeFastHLine(0,16, 128, SSD1306_WHITE);
 
         // display frequency
-        switch(MenuType)
+        switch(ACT.MenyType)
         {
             // VFO type
             case MENU_TYPE_VFO:
@@ -896,28 +923,15 @@ void loop()
 
               // adjust displayed frequency
               #ifndef IF_MODE
-                dtostrf(((float)tmpFreq/SI5351_FREQ_MULTIPLIER), 7, 1, LCDstr);
+                dtostrf(((float)ACT.OutputFreq/SI5351_FREQ_MULTIPLIER), 7, 1, LCDstr);
               #else
-                dtostrf(((float)tmpFreq/SI5351_FREQ_MULTIPLIER - ACT.EE_Values[EE_INDEX_INTFREQ]), 7, 1, LCDstr);
+                dtostrf(((float)ACT.OutputFreq/SI5351_FREQ_MULTIPLIER - ACT.EE_Values[EE_INDEX_INTFREQ]), 7, 1, LCDstr);
               #endif
               display.print(LCDstr);
             
               // display mode
               display.setTextSize(1); 
               display.setCursor(92, 57);
-              
-              // check mode
-              switch(tmpMode)
-              {
-                  // display modulation mode
-                  case MODULATION_MODE_AM:  display.print(F("AM ")); break;
-                  case MODULATION_MODE_LSB: display.print(F("LSB")); break;
-                  case MODULATION_MODE_USB: display.print(F("USB")); break;
-                  default:                  display.print(F("ERR")); break;
-              } 
-
-              // roger beep status
-              if (ACT.EE_Values[EE_INDEX_RB_STATUS]) display.print(F(" RB"));              
               break;
 
             // Channel type
@@ -958,22 +972,30 @@ void loop()
               // display mode
               display.setTextSize(1); 
               display.setCursor(92, 37);
-                  
-              // check mode
-              switch(tmpMode)
-              {
-                  // display modulation mode
-                  case MODULATION_MODE_AM:  display.print(F("AM ")); break;
-                  case MODULATION_MODE_LSB: display.print(F("LSB")); break;
-                  case MODULATION_MODE_USB: display.print(F("USB")); break;
-                  default:                  display.print(F("ERR")); break;
-              } 
-
-              // roger beep status
-              if (ACT.EE_Values[EE_INDEX_RB_STATUS]) display.print(F(" RB"));
               break;
         }
       
+        ///////////////////
+        // draws status
+        ///////////////////
+
+        // check mode
+        switch(VFO.ModulationMode)
+        {
+            // display modulation mode
+            case MODULATION_MODE_AM:  display.print(F("AM ")); break;
+            case MODULATION_MODE_LSB: display.print(F("LSB")); break;
+            case MODULATION_MODE_USB: display.print(F("USB")); break;
+            default:                  display.print(F("ERR")); break;
+        } 
+
+        // roger beep status
+        if (ACT.EE_Values[EE_INDEX_RB_STATUS]) display.print(F(" RB"));
+
+        ///////////////////
+        // end draws status
+        ///////////////////
+
         // draw a line
         display.writeFastHLine(0, 47, 128, SSD1306_WHITE);
         ///////////////////////////////////////////////
@@ -1049,7 +1071,7 @@ void loop()
     if (!VFO.ServMenuInUse)
     {
         // choose correct unit
-        switch(MenuType)
+        switch(ACT.MenyType)
         {
             // VFO type
             case MENU_TYPE_VFO:
@@ -1071,10 +1093,18 @@ void loop()
               // show frequency based on voice lock modifications
               #ifndef IF_MODE
                 // show frequency set
-                dtostrf(((float)tmpFreq/SI5351_FREQ_MULTIPLIER), 7, 1, LCDstr);
+                #ifndef SHOW_AI_VOICE_LOCK_INPUT_VALUE
+                  dtostrf(((float)ACT.OutputFreq/SI5351_FREQ_MULTIPLIER), 7, 1, LCDstr);
+                #else
+                  dtostrf(((float)analogRead(AI_VOICE_LOCK)), 7, 0, LCDstr);
+                #endif
               #else
                 // subtracts IF frequecy before showing
-                dtostrf(((float)tmpFreq/SI5351_FREQ_MULTIPLIER - ACT.EE_Values[EE_INDEX_INTFREQ]), 7, 1, LCDstr); 
+                #ifndef SHOW_AI_VOICE_LOCK_INPUT_VALUE
+                  dtostrf(((float)ACT.OutputFreq/SI5351_FREQ_MULTIPLIER - ACT.EE_Values[EE_INDEX_INTFREQ]), 7, 1, LCDstr); 
+                #else
+                  dtostrf(((float)analogRead(AI_VOICE_LOCK)), 7, 0, LCDstr);
+                #endif
               #endif
               display.print(LCDstr);
               display.setTextSize(1); 
@@ -1104,7 +1134,8 @@ void loop()
     ///////////////////////////////////////////////
   
     // update display
-    display.display();      
+    display.display();    
+
     /////////////////////////////////
     // end display management
     /////////////////////////////////
@@ -1113,7 +1144,7 @@ void loop()
     // start PTT and Roger Beep management
     ///////////////////////////////////////////////
     // check radio state (starts with PTT button)
-    switch(RadioState)
+    switch(ACT.RadioState)
     {
         case RADIO_STATE_RX:     
           // check for PTT - active low
@@ -1123,7 +1154,7 @@ void loop()
               digitalWrite(DO_PTT_TX, HIGH);
               
               // advance radio state
-              RadioState = RADIO_STATE_TX;
+              ACT.RadioState = RADIO_STATE_TX;
           }
           break;
           
@@ -1141,18 +1172,13 @@ void loop()
                     {
                        tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY);  
                     }
-                    else
-                    {
-                       tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY/2);  
-                    }
-                    
                   #else
                     // enable analogic beep
                     digitalWrite(DO_RG_BEEP, HIGH);
                   #endif
                 
                   // advance radio state
-                  RadioState = RADIO_STATE_BEEP;
+                  ACT.RadioState = RADIO_STATE_BEEP;
               }
               else
               {
@@ -1160,7 +1186,7 @@ void loop()
                   digitalWrite(DO_PTT_TX, LOW);
                   
                   // advance radio state
-                  RadioState = RADIO_STATE_RX;
+                  ACT.RadioState = RADIO_STATE_RX;
               }
           }
 
@@ -1169,30 +1195,35 @@ void loop()
           break;
       
         case RADIO_STATE_BEEP:
-          // wait for timer to finish
-          if (TimerDown[TIMERDOWN_BEEP].Counter == 0)
+          // check for special beep :D
+          if(ACT.EE_Values[EE_INDEX_RB_STATUS] != MENU_ROGERBEEP_SPECIAL)
           {
-              // check for analogic/digital Roger Beep
-              #ifdef DIGITAL_ROGER_BEEP
-                // ends roger beep
-                noTone(DO_RG_BEEP);
-              #else
-                // disable analogic beep
-                digitalWrite(DO_RG_BEEP, LOW);        
-              #endif
+              // wait for timer to finish
+              if (TimerDown[TIMERDOWN_BEEP].Counter == 0)
+              {
+                  // check for analogic/digital Roger Beep
+                  #ifdef DIGITAL_ROGER_BEEP
+                    // ends roger beep
+                    noTone(DO_RG_BEEP);
+                  #else
+                    // disable analogic beep
+                    digitalWrite(DO_RG_BEEP, LOW);        
+                  #endif
 
-              // reset radio state back to reception
-              RadioState = RADIO_STATE_DELAY_RX;
+                  // reset radio state back to reception
+                  ACT.RadioState = RADIO_STATE_DELAY_RX;
 
-              // set timer
-              TimerDown[TIMERDOWN_DELAY_AFTER_BEEP].Counter =  TIMERDOWN_DELAY_AFTER_BEEP_VALUE;             
+                  // set timer
+                  TimerDown[TIMERDOWN_DELAY_AFTER_BEEP].Counter =  TIMERDOWN_DELAY_AFTER_BEEP_VALUE;             
+              }
           }
-          else if (TimerDown[TIMERDOWN_BEEP].Counter < (TIMERDOWN_BEEP_VALUE/2) && (ACT.EE_Values[EE_INDEX_RB_STATUS] == MENU_ROGERBEEP_DOUBLE))
+          else
           {
-              #ifdef DIGITAL_ROGER_BEEP
-                // starts digital beep
-                tone(DO_RG_BEEP, DIGITAL_RB_FREQUENCY);
-              #endif
+			      // play Mario Bros  
+            PlaySuperMarioTheme();
+			
+            // reset radio state back to reception
+            ACT.RadioState = RADIO_STATE_DELAY_RX;
           }
           break;
 
@@ -1204,7 +1235,7 @@ void loop()
               digitalWrite(DO_PTT_TX, LOW);
               
               // reset radio state back to reception
-              RadioState = RADIO_STATE_RX;
+              ACT.RadioState = RADIO_STATE_RX;
           }
           break;
     }
@@ -1212,20 +1243,6 @@ void loop()
     ///////////////////////////////////////////////
     // end PTT and Roger Beep management
     ///////////////////////////////////////////////
-
-    ////////////////////////////////////////////////////
-    // monitoring inputs and outputs with BuiltIn Led
-    ////////////////////////////////////////////////////
-    // digitalWrite(LED_BUILTIN, !digitalRead(DI_PTT_KEY));
-    // digitalWrite(LED_BUILTIN, digitalRead(DO_PTT_TX));
-    // digitalWrite(LED_BUILTIN, digitalRead(DO_RG_BEEP));
-
-    // 1 [second] beacon
-    // if (TimerDown[TIMERDOWN_RUNNING_LED].Counter == 0)
-    // {
-    //     TimerDown[TIMERDOWN_RUNNING_LED].Counter = TIMERDOWN_RUNNING_LED_VALUE;
-    //     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-    // }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1267,16 +1284,6 @@ int32_t CheckLimits32(int32_t Variable, int32_t Minimum, int32_t Maximum)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Check boundaries of a 64bits variable
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int64_t CheckLimits64(int64_t Variable, int64_t Minimum, int64_t Maximum)
-{
-    if (Variable < Minimum) return Minimum;
-    if (Variable > Maximum) return Maximum;
-    return Variable;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Set Display Contrast
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SetContrast(uint8_t value)
@@ -1304,4 +1311,43 @@ void ShowLogo(void)
     display.display();      
     delay(1500);
     display.clearDisplay();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Super Mario Bros Theme Intro
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void PlaySuperMarioTheme(void)
+{
+    // play note
+    tone(DO_RG_BEEP, NOTE_E5, T2);
+    delay(T2);
+    noTone(DO_RG_BEEP);
+
+    // play note
+    tone(DO_RG_BEEP, NOTE_E5, T2);
+    delay(T2);
+  
+    // pause
+    delay(T2);
+
+    // play note
+    tone(DO_RG_BEEP, NOTE_E5, T2);
+    delay(T2);
+    noTone(DO_RG_BEEP);
+
+    // pause
+    delay(T2);
+
+    // play note
+    tone(DO_RG_BEEP, NOTE_C5, T2);
+    delay(T2);
+  
+    // play note
+    tone(DO_RG_BEEP, NOTE_E5, T2);
+    delay(T1);
+  
+    // play note
+    tone(DO_RG_BEEP, NOTE_G5, T1);
+    delay(T1);
+    noTone(DO_RG_BEEP);
 }
