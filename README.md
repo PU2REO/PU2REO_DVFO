@@ -59,6 +59,13 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 ![Digital VFO - Assembled Buffer Board](Images/Image06.jpeg "Digital VFO - Assembled Buffer Board")
 ![Digital VFO - Assembled Main Board](Images/Image07.jpeg "Digital VFO - Assembled Main Board")
 
+# How to help?
+  - 1 - Give me a star and it will empower my good spirits to move on further.
+  - 2 - When using it or modifying it, please, refer to original source files and author. It will be, at least, polite.
+  - 3 - Don't ask for personal modifications (Like CW and FM modulation modes: there's no secret in these modes and, if you know your ways in electronics and programming, you can do it by yourself).
+  - 4 - Please, don't sell it: I made it as a hobby, not for money.
+  - 5 - Feel free to contribute in anyway. All new ideas are welcomed.
+
 # History
   - 1.0 – Initial version
   - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine
