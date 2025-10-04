@@ -59,6 +59,10 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 ![Digital VFO - Assembled Buffer Board](Images/Image06.jpeg "Digital VFO - Assembled Buffer Board")
 ![Digital VFO - Assembled Main Board](Images/Image07.jpeg "Digital VFO - Assembled Main Board")
 
+# See it in action :heart_eyes:
+[![Video Title](https://img.youtube.com/vi/FtAkq1li9y4/0.jpg)](https://www.youtube.com/watch?v=FtAkq1li9y4)
+[![Video Title](https://img.youtube.com/vi/bADNZea7BQI/0.jpg)](https://www.youtube.com/watch?v=bADNZea7BQI)
+
 # How to help?
   - Give me a star and it will empower my good spirits to move on further.
   - When using it or modifying it, please, refer to original source files and author. It will be, at least, polite.
