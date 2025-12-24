@@ -1,7 +1,7 @@
 # PU2REO_DVFO
 Digital Variable Frequency Oscillator to be applied to Citzen Band/Amateur Radio transceivers, using SkyWorks' Si5351 programmable any-frequency CMOS clock generator.
 
-![Digital VFO - v1.0](Images/Image01.jpeg "Digital VFO Splash Screen")
+![Digital VFO - v1.5](Images/Image01.jpeg "Digital VFO Splash Screen")
 
 # Preface
 The Si5351 is an I2C configurable clock generator that is ideally suited for replacing crystals, crystal oscillators, VCXOs, phase-locked loops (PLLs), and fanout buffers in cost-sensitive applications.
@@ -47,7 +47,7 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
   - S-Meter on display, via Analog Input;
 
 # Detailed information
-[PU2REO DVFO - User Manual v1.2.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.2.pdf "PU2REO DVFO - User Manual v1.2.pdf")
+[PU2REO DVFO - User Manual v1.5.pdf](Documents/PU2REO%20DVFO%20-%20User%20Manual%20v1.5.pdf "PU2REO DVFO - User Manual v1.5.pdf")
 
 # Features not implemented yet
   - HF receiver for 40m band;
@@ -72,9 +72,10 @@ These are the implemented features so far, taylored for my old [Cobra 148GTL](ht
 
 # History
   - 1.0 – Initial version
-  - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine
-  - 1.2 - Fixed channel mode power-on frequency; Single or Two-tone Roger Beep; Removed extra code managing EEPROM savings
-  - 1.3 - (not releasead)
-  - 1.4 - Removed Two-Tone Roger Beep and added a Special One (to my granddaughter!); Map function on voice lock;  Fixed voice lock range issue (AInput does not reach value 1024); Minor improvements
+  - 1.1 – New pictures into the manual, minor correction to the schematics; Improvement on EEPROM saving routine.
+  - 1.2 - Fixed channel mode power-on frequency; Single or Two-tone Roger Beep; Removed extra code managing EEPROM savings.
+  - 1.3 - (not released)
+  - 1.4 - Removed Two-Tone Roger Beep and added a Special One (to my granddaughter!); Map function on voice lock;  Fixed voice lock range issue (AInput does not reach value 1024); Minor improvements.
+  - 1.5 - Blink Nano LED in case of Si5351/Display error; Cyclic VFO (After SI5351_MAX_FREQ returns SI5351_MIN_FREQ and vice-versa); Cyclic Channels  (After VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1), VFO.ChannelIndex returns to zero and vice-versa); Optimized EEPROM readings/savings by block.
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/PU2REO/PU2REO_DVFO/total?style=flat)

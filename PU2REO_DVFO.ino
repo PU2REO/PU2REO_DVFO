@@ -1,5 +1,5 @@
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// Programmed by PU2REO, Copyright 2023
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Programmed by PU2REO, Copyright 2023-2025
 //
 // History:
 //  v1.0
@@ -23,6 +23,11 @@
 //    - Treating all frequency related vars as uint64_t
 //    - Fixed voice lock range issue (AInput does not reach value 1024)
 //    - Minor improvements
+//  v1.5
+//    - Blink Nano LED in case of Si5351/Display error
+//    - Cyclic VFO (After SI5351_MAX_FREQ retruns SI5351_MIN_FREQ and vice-versa)
+//    - Cyclic Channels  (After VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1), VFO.ChannelIndex returns to zero and vice-versa)
+//    - Optimized EEPROM readings/savings by block.
 //  
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///                             Adrduino Nano Pinout
@@ -52,12 +57,12 @@
 //
 //      Note 1 -  A6 and A7 pins can ONLY be used as analogic inputs.
 //      Note 2 -  A7 pin open (Voice Lock) will calse multiple set_freq calls, resulting in audio noise.
-//      Note 3 -  Voice Lock Potentiometer needs a RC Filter on its terminals. Without the filter, arduinos resets itself from time to time
-//		  Note 4 -  Bootloader set all(?) pins to high state, making the TX relay active for bootloader time.
+//      Note 3 -  Voice Lock Potentiometer needs a RC Filter on its terminals. Without the filter, arduino resets itself from time to time
+//		  Note 4 -  Bootloader set all(?) pins to high state, making the TX relay active during bootloader time.
 //      Note 5 -  Due to Note 4, a cheap programmer is recommended (removes bootloader when used)
 //                       
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//      To remove the waste of program memory (About 2k) with the splash screen:
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//      To avoid wasting of program memory (About 2k) with the Adafruit's splash screen:
 //        1 - Find and open "Adafruit_SSD1306.cpp" inside "Adafruit_SSD1306" library
 //        2 - Define: #define SSD1306_NO_SPLASH at the beggining of the file.
 //      Repeat these steps after every update for "Adafruit_SSD1306" library
@@ -83,16 +88,16 @@
 /// Includes
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #include <Adafruit_SSD1306.h>
-#include <RotaryEncoder.h>                                      // https://github.com/mathertel/RotaryEncoder 
-#include <si5351_lite.h>                             						// Based on v2.1.4, modified for just 3 clocks
+#include <RotaryEncoder.h>                                      // v1.6.0 - https://github.com/mathertel/RotaryEncoder 
+#include <si5351_lite.h>                             						// Based on v2.2.0, modified for just 3 clocks
                                                                 // Needs at least 1300 bytes of free dynamic RAM memory to run.
 #include <ButtonV2.h>                                           // https://github.com/AndrewMascolo/ButtonV2/tree/master/ButtonV2
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// Definitions
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define DVFO_VERSION                              "DVFO v1.4"           // Current DDS Version
-#define DVFO_BUILD_DATE                           "Built Jul 28th, 2024"// Build Date
+#define DVFO_VERSION                              "DVFO v1.5"           // Current DDS Version
+#define DVFO_BUILD_DATE                           "Built Dec 24th, 2025"// Build Date
 #define IF_MODE                                                         // enables IF mode (Adds ACT.EE_Values[EE_INDEX_INTFREQ] to the output - to use with a real radio)
 #define DIGITAL_ROGER_BEEP                                              // Enable Digital Roger Beep (tone function in arduino)
 // #define SHOW_AI_VOICE_LOCK_INPUT_VALUE                                  // Show AI_VOICE_LOCK readings
@@ -402,6 +407,7 @@ void setup()
     // initialize digital outputs
     pinMode(DO_PTT_TX,   OUTPUT);
     pinMode(DO_RG_BEEP,  OUTPUT);
+    pinMode(LED_BUILTIN,  OUTPUT);
 
     // set digital outputs initial state
     digitalWrite(DO_PTT_TX,  LOW);
@@ -448,7 +454,11 @@ void setup()
     if (!si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0))
     {
        #ifndef PROTEUS
-         for(;;); // Don't proceed, loop forever
+         for(;;) // Don't proceed, loop forever
+         {
+            // notify via built-in LED
+            BlinkLED(500);
+         }
        #endif
     }
   
@@ -494,7 +504,11 @@ void setup()
     if(!display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDR)) 
     {
        #ifndef PROTEUS
-         for(;;); // Don't proceed, loop forever
+         for(;;) // Don't proceed, loop forever
+         {
+            // notify via built-in LED
+            BlinkLED(1000);
+         }
        #endif
     }
     display.clearDisplay();
@@ -705,8 +719,8 @@ void loop()
                 case MENU_TYPE_CHANNEL:
                   // calculate new frequency
                   VFO.ChannelIndex += (int16_t)newPosition * (uint16_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
-                  if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition > 0)) VFO.ChannelIndex = MAX_CHANNEL_INDEX-1;
-                  if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition < 0)) VFO.ChannelIndex = 0;
+                  if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition > 0)) VFO.ChannelIndex = 0;
+                  if ((VFO.ChannelIndex > (MAX_CHANNEL_INDEX-1)) && (newPosition < 0)) VFO.ChannelIndex = MAX_CHANNEL_INDEX-1;
                   break;
             }
             
@@ -716,8 +730,8 @@ void loop()
         else
         {
             // calculate new adjust value
-            ACT.EE_Values[ACT.EE_Values_Index] += (uint32_t)newPosition * (uint32_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
-
+            ACT.EE_Values[ACT.EE_Values_Index] += (ACT.EE_Values_Index == EE_INDEX_RB_STATUS) ? (uint32_t)newPosition : (uint32_t)newPosition * (uint32_t)pgm_read_word(&CoefTable[VFO.CoefIndex]);
+            
             // check for menu type 0 or 1 Allowed
             if (ACT.EE_Values_Index == EE_INDEX_MENUTYP)
             {
@@ -1251,12 +1265,8 @@ void loop()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void ReadValuesFromEEPROM(void)
 {
-    // read values from EPPROM
-    for(uint16_t i=0; i<EE_INDEX_MAX; i++)
-    {
-        // read "sizeof(uint32_t)" bytes per time
-        ACT.EE_Values[i] = eeprom_read_dword((const uint32_t *)(i * sizeof(uint32_t)));
-    }
+    // Optimized bulk read - assuming values are contiguous
+    eeprom_read_block(ACT.EE_Values, 0, EE_INDEX_MAX * sizeof(uint32_t));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1265,12 +1275,8 @@ void ReadValuesFromEEPROM(void)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SaveValuesToEEPROM(void)
 {
-    // read values from EPPROM
-    for(uint16_t i=0; i<EE_INDEX_MAX; i++)
-    {
-        // write "sizeof(uint32_t)" bytes per time
-        eeprom_write_dword ((uint32_t *)(i * sizeof(uint32_t)), (uint32_t)ACT.EE_Values[i]);
-    }
+    // Optimized bulk write (update writes only altered bytes)
+    eeprom_update_block(ACT.EE_Values, 0, EE_INDEX_MAX * sizeof(uint32_t));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1278,8 +1284,8 @@ void SaveValuesToEEPROM(void)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int32_t CheckLimits32(int32_t Variable, int32_t Minimum, int32_t Maximum)
 {
-    if (Variable < Minimum) return Minimum;
-    if (Variable > Maximum) return Maximum;
+    if (Variable < Minimum) return Maximum;
+    if (Variable > Maximum) return Minimum;
     return Variable;
 }
 
@@ -1350,4 +1356,14 @@ void PlaySuperMarioTheme(void)
     tone(DO_RG_BEEP, NOTE_G5, T1);
     delay(T1);
     noTone(DO_RG_BEEP);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void BlinkLED(uint32_t Interval)
+{
+    // blink led
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(Interval);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(Interval);
 }
