@@ -1,6 +1,8 @@
 # PU2REO_DVFO
 Digital Variable Frequency Oscillator to be applied to Citzen Band/Amateur Radio transceivers, using SkyWorks' Si5351 programmable any-frequency CMOS clock generator.
 
+![Digital VFO - v1.5](Images/Image01.jpeg "Digital VFO Splash Screen")
+
 # Preface
 The Si5351 is an I2C configurable clock generator that is ideally suited for replacing crystals, crystal oscillators, VCXOs, phase-locked loops (PLLs), and fanout buffers in cost-sensitive applications.
 With that in mind and having at hand an old CB radio with PLL/VCO problems, I decided to design something digitally controlled to put my old gear back on its feet again.
